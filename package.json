@@ -1,4 +1,9 @@
+
 {
+  "name": "Bling",
+  "description": "Bling, an easy way to manage common billing scenarios",
+  "version": "0.4.1",
+  "homepage": "https://github.com/npm/example#readme",
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^2.1.0",
     "@tsconfig/svelte": "^4.0.1",
