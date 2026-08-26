@@ -267,9 +267,7 @@ defmodule Bling.Subscriptions do
       if trial?(subscription) do
         subscription.trial_ends_at
       else
-        stripe_subscription.current_period_end
-        |> DateTime.from_unix!()
-        |> DateTime.truncate(:second)
+        subscription_period_end(stripe_subscription)
       end
 
     subscription
@@ -314,7 +312,7 @@ defmodule Bling.Subscriptions do
   ## Examples
       subscription = cancel_now(subscription)
 
-      # can pass any valid Stripe.Subscription.delete/2 params
+      # can pass any valid Stripe.Subscription.cancel/2 params
       subscription = cancel_now(subscription, stripe: %{ invoice_now: true })
   """
   def cancel_now(subscription, opts \\ []) do
@@ -558,7 +556,7 @@ defmodule Bling.Subscriptions do
         event.cancel_at_period_end ->
           if trial_end,
             do: trial_end,
-            else: event.current_period_end |> DateTime.from_unix!() |> DateTime.truncate(:second)
+            else: subscription_period_end(event)
 
         event.cancel_at ->
           event.cancel_at |> DateTime.from_unix!() |> DateTime.truncate(:second)
@@ -588,6 +586,28 @@ defmodule Bling.Subscriptions do
       trial_ends_at: trial_end,
       ends_at: ends_at
     })
+  end
+
+  defp subscription_period_end(subscription) do
+    subscription
+    |> subscription_period_end_timestamp()
+    |> timestamp_to_datetime()
+  end
+
+  defp subscription_period_end_timestamp(subscription) do
+    Map.get(subscription, :current_period_end) ||
+      (subscription
+       |> Map.get(:items, %{})
+       |> Map.get(:data, [])
+       |> Enum.map(&Map.get(&1, :current_period_end))
+       |> Enum.filter(&is_integer/1)
+       |> Enum.min(fn -> nil end))
+  end
+
+  defp timestamp_to_datetime(nil), do: nil
+
+  defp timestamp_to_datetime(timestamp) do
+    timestamp |> DateTime.from_unix!() |> DateTime.truncate(:second)
   end
 
   @doc """

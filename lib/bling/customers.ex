@@ -314,7 +314,7 @@ defmodule Bling.Customers do
         payment_behavior: "default_incomplete",
         metadata: %{"name" => name},
         default_payment_method: customer.payment_id,
-        expand: ["latest_invoice"]
+        expand: ["latest_invoice.payments"]
       }
       |> Map.merge(stripe_params)
       |> maybe_add_tax(customer)
@@ -389,7 +389,7 @@ defmodule Bling.Customers do
   ## Examples
       url = subscription_checkout_url(customer,
         plan: "default",
-        prices: [{price_id, quantity}]
+        prices: [{price_id, quantity}],
         stripe: %{
           cancel_url: "http://localhost:4000/users/settings",
           success_url: "http://localhost:4000/users/settings"
@@ -429,17 +429,38 @@ defmodule Bling.Customers do
     session.url
   end
 
-  defp maybe_confirm(%{latest_invoice: %{payment_intent: nil}}, _return_url), do: {:ok, nil}
+  defp maybe_confirm(stripe_subscription, return_url) do
+    case latest_invoice_payment_intent(stripe_subscription) do
+      nil ->
+        {:ok, nil}
 
-  defp maybe_confirm(%{status: "incomplete"} = stripe_subscription, return_url) do
-    Stripe.PaymentIntent.confirm(stripe_subscription.latest_invoice.payment_intent, %{
-      return_url: return_url
-    })
+      payment_intent ->
+        maybe_confirm_payment_intent(stripe_subscription, payment_intent, return_url)
+    end
   end
 
-  defp maybe_confirm(stripe_subscription, _) do
-    Stripe.PaymentIntent.retrieve(stripe_subscription.latest_invoice.payment_intent, %{})
+  defp maybe_confirm_payment_intent(%{status: "incomplete"}, payment_intent, return_url),
+    do: Stripe.PaymentIntent.confirm(payment_intent, %{return_url: return_url})
+
+  defp maybe_confirm_payment_intent(_, payment_intent, _),
+    do: Stripe.PaymentIntent.retrieve(payment_intent, %{})
+
+  defp latest_invoice_payment_intent(%{latest_invoice: %{payment_intent: payment_intent}})
+       when not is_nil(payment_intent),
+       do: payment_intent
+
+  defp latest_invoice_payment_intent(%{latest_invoice: %{payments: %{data: payments}}}) do
+    Enum.find_value(payments, fn
+      %{is_default: true, payment: %{payment_intent: payment_intent}}
+      when not is_nil(payment_intent) ->
+        payment_intent
+
+      _ ->
+        nil
+    end)
   end
+
+  defp latest_invoice_payment_intent(_), do: nil
 
   defp maybe_create_subscription(customer, stripe_subscription) do
     repo = Bling.repo()

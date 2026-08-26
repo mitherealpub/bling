@@ -220,13 +220,39 @@ defmodule BlingTest.SubscriptionsTest do
       Customers.create_subscription(user,
         prices: [{price_id(:plus_monthly), 1}],
         return_url: @return_url,
-        stripe: %{ coupon: coupon.id }
+        stripe: %{coupon: coupon.id}
       )
 
     assert Enum.count(Repo.all(Subscription)) == 1
     assert Enum.count(Repo.all(SubscriptionItem)) == 1
 
     assert_recurring_subscription(subscription)
+  end
+
+  test "uses the earliest subscription item period when cancellation is scheduled" do
+    earliest_period_end = DateTime.utc_now() |> DateTime.add(30, :day) |> DateTime.to_unix()
+    latest_period_end = earliest_period_end + 86_400
+
+    stripe_subscription = %Stripe.Subscription{
+      id: "sub_1234",
+      status: "active",
+      cancel_at_period_end: true,
+      items: %{
+        data: [
+          %Stripe.SubscriptionItem{current_period_end: latest_period_end},
+          %Stripe.SubscriptionItem{current_period_end: earliest_period_end}
+        ]
+      },
+      metadata: %{}
+    }
+
+    subscription =
+      %Subscription{}
+      |> Subscriptions.subscription_struct_from_stripe_subscription(stripe_subscription)
+      |> Ecto.Changeset.apply_changes()
+
+    assert subscription.ends_at ==
+             (earliest_period_end |> DateTime.from_unix!() |> DateTime.truncate(:second))
   end
 
   # test incomplete subscriptions
