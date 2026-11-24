@@ -8,10 +8,13 @@ defmodule BlingTest.Repo.Migrations.CreatePlans do
       add :name, :string, null: false
       add :description, :string
       add :unit_amount, :integer
+      add :unit_amount_decimal, :string
       add :currency, :string, default: "usd"
       add :interval, :string
+      add :billing_scheme, :string, default: "per_unit"
       add :usage_type, :string, default: "licensed"
       add :meter_event_name, :string
+      add :tiers, {:array, :map}, default: [], null: false
       add :active, :boolean, default: true
       add :metadata, :map, default: %{}
 
