@@ -79,6 +79,18 @@ defmodule Bling.StripeWebhookHandler do
     :ok
   end
 
+  def handle_event(%Stripe.Event{type: type, data: %{object: %Stripe.Price{} = price}} = event)
+      when type in ["price.created", "price.updated", "price.deleted"] do
+    Bling.Plans.upsert_from_stripe(price)
+    forward_to_app(event)
+  end
+
+  def handle_event(%Stripe.Event{type: "product.updated"} = event) do
+    Bling.Plans.sync_all()
+    forward_to_app(event)
+  end
+
+
   defp handle("customer.subscription.created", %Stripe.Subscription{} = event) do
     repo = Bling.repo()
     sub_schema = Bling.subscription()
