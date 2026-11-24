@@ -688,6 +688,21 @@ defmodule MyApp.Bling do
 end
 ```
 
+## How to use metered plans 
+# 1. Subscribe customer to base plan + metered overage price
+Bling.Customers.create_subscription(
+  user,
+  return_url: finalize_url,
+  prices: [
+    {"price_pro_monthly", 1},
+    "price_api_overage_metered"
+  ]
+)
+
+# 2. Record usage whenever the user triggers a billable action
+Bling.Meters.record_event(user, "api_overage", 1, identifier: Ecto.UUID.generate())
+
+
 ## Contributing
 
 Contributions are always welcome. Please open issues and submit pull requests with proper tests included.
