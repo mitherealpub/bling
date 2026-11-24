@@ -506,4 +506,12 @@ defmodule Bling.Customers do
       true -> params
     end
   end
+
+defp format_subscription_items(prices) do
+  Enum.map(prices, fn
+    {price_id, nil} -> %{price: price_id}
+    {price_id, qty} -> %{price: price_id, quantity: qty}
+    price_id when is_binary(price_id) -> %{price: price_id}
+  end)
+end
 end
