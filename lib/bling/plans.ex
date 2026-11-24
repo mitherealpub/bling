@@ -1,9 +1,9 @@
 defmodule Bling.Plans do
   import Ecto.Query
-  alias Bling.Plan
 
   def list_active do
-    repo().all(from p in Plan, where: p.active == true, order_by: [asc: p.unit_amount])
+    plan_schema = Bling.plan()
+    Bling.repo().all(from p in plan_schema, where: p.active == true, order_by: [asc: p.unit_amount])
   end
 
   def sync_all(stripe_opts \\ %{}) do
@@ -16,9 +16,13 @@ defmodule Bling.Plans do
   end
 
   def upsert_from_stripe(%Stripe.Price{} = price) do
+    plan_schema = Bling.plan()
+
     product =
       case price.product do
-        %Stripe.Product{} = prod -> prod
+        %Stripe.Product{} = prod ->
+          prod
+
         prod_id when is_binary(prod_id) ->
           {:ok, prod} = Stripe.Product.retrieve(prod_id)
           prod
@@ -40,13 +44,12 @@ defmodule Bling.Plans do
       metadata: metadata
     }
 
-    %Plan{}
-    |> Plan.changeset(attrs)
-    |> repo().insert(
+    plan_schema
+    |> struct()
+    |> plan_schema.changeset(attrs)
+    |> Bling.repo().insert(
       on_conflict: {:replace_all_except, [:id, :inserted_at]},
       conflict_target: :stripe_price_id
     )
   end
-
-  defp repo, do: Application.fetch_env!(:bling, :repo)
 end

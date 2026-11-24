@@ -7,7 +7,7 @@ defmodule Pmtr.Repo.Migrations.CreateSubscriptionItemsTable do
       add :stripe_id, :string, null: false
       add :stripe_product_id, :string, null: false
       add :stripe_price_id, :string, null: false
-      add :quantity, :integer
+      add :quantity, :integer, null: true
 
       timestamps(type: :utc_datetime)
     end

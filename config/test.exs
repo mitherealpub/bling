@@ -6,5 +6,6 @@ config :bling,
   subscription_item: BlingTest.SubscriptionItem,
   customers: [user: BlingTest.User],
   bling: BlingTest.ExampleBling
+  plan: BlingTest.Plan
 
 import_config("test.secret.exs")

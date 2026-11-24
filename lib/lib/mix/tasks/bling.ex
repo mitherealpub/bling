@@ -32,6 +32,18 @@ defmodule Bling do
     Application.get_env(:bling, :subscription_item)
   end
 
+  def plan do
+    Application.get_env(:bling, :plan, Bling.Plan)
+  end
+
+  def format_subscription_items(prices) do
+    Enum.map(prices, fn
+      {price_id, nil} -> %{price: price_id}
+      {price_id, quantity} -> %{price: price_id, quantity: quantity}
+      price_id when is_binary(price_id) -> %{price: price_id}
+    end)
+  end
+
   def module_from_customer_type(type) do
     Enum.find_value(customers(), fn {name, mod} ->
       if to_string(name) == to_string(type), do: mod, else: nil

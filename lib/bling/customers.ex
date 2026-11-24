@@ -305,7 +305,7 @@ defmodule Bling.Customers do
     prices =
       (opts[:prices] || []) |> Enum.map(fn {id, quantity} -> %{price: id, quantity: quantity} end)
 
-    items = Keyword.get(opts, :items, prices)
+    items = Keyword.get(opts, :items, format_subscription_items(prices))
 
     params =
       %{
@@ -399,10 +399,10 @@ defmodule Bling.Customers do
     name = plan_from_opts(opts)
     stripe_params = stripe_params(opts)
 
-    line_items =
+     line_items =
       opts
       |> Keyword.get(:prices, [])
-      |> Enum.map(fn {price, quantity} -> %{price: price, quantity: quantity} end)
+      |> format_subscription_items()
 
     provided_sub_data = stripe_params |> Map.get(:subscription_data, %{})
     provided_meta = provided_sub_data |> Map.get(:metadata, %{})
@@ -507,6 +507,7 @@ defmodule Bling.Customers do
     end
   end
 
+
 defp format_subscription_items(prices) do
   Enum.map(prices, fn
     {price_id, nil} -> %{price: price_id}
@@ -514,4 +515,5 @@ defp format_subscription_items(prices) do
     price_id when is_binary(price_id) -> %{price: price_id}
   end)
 end
+
 end

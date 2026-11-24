@@ -42,29 +42,23 @@ defmodule Mix.Tasks.Bling.Install do
     Mix.Generator.copy_template(stub_path, final_path, module_name: module_name)
   end
 
-  defp copy_subscription_schemas(project_directory, dep_directory, module_name) do
+    defp copy_subscription_schemas(project_directory, dep_directory, module_name) do
     sub_stub_path = Path.join([dep_directory, "stubs/subscription_schema.ex.stub"])
     sub_item_stub_path = Path.join([dep_directory, "stubs/subscription_item_schema.ex.stub"])
+    plan_stub_path = Path.join([dep_directory, "stubs/plan_schema.ex.stub"])
 
     module_folder = get_module_folder(module_name)
     context_folder = Path.join([project_directory, "lib/#{module_folder}/subscriptions"])
 
-    File.mkdir(context_folder)
+    File.mkdir_p(context_folder)
 
-    sub_final_path =
-      Path.join([
-        context_folder,
-        "subscription.ex"
-      ])
-
-    sub_item_final_path =
-      Path.join([
-        context_folder,
-        "subscription_item.ex"
-      ])
+    sub_final_path = Path.join([context_folder, "subscription.ex"])
+    sub_item_final_path = Path.join([context_folder, "subscription_item.ex"])
+    plan_final_path = Path.join([context_folder, "plan.ex"])
 
     Mix.Generator.copy_template(sub_stub_path, sub_final_path, module_name: module_name)
     Mix.Generator.copy_template(sub_item_stub_path, sub_item_final_path, module_name: module_name)
+    Mix.Generator.copy_template(plan_stub_path, plan_final_path, module_name: module_name)
   end
 
   defp copy_bling_module(project_directory, dep_directory, module_name) do
@@ -95,4 +89,6 @@ defmodule Mix.Tasks.Bling.Install do
     |> String.replace(":", "")
     |> String.replace(" ", "")
   end
+
+
 end

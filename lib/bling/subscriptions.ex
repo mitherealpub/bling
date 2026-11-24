@@ -105,13 +105,12 @@ defmodule Bling.Subscriptions do
     repo = Bling.repo()
 
     prices
-    |> Enum.map(fn {price, quantity} ->
+    |> format_subscription_items()
+    |> Enum.map(fn item_params ->
       params =
-        Map.merge(stripe_params, %{
-          subscription: subscription.stripe_id,
-          price: price,
-          quantity: quantity
-        })
+        stripe_params
+        |> Map.merge(item_params)
+        |> Map.put(:subscription, subscription.stripe_id)
 
       {:ok, item} = Stripe.SubscriptionItem.create(params)
       item
@@ -174,12 +173,13 @@ defmodule Bling.Subscriptions do
     subscription_items = subscription_items(subscription)
 
     new_items =
-      Enum.map(prices, fn {price_id, quantity} ->
+      prices
+      |> format_subscription_items()
+      |> Enum.map(fn %{price: price_id} = base ->
         existing = Enum.find(subscription_items, fn item -> item.stripe_price_id == price_id end)
-        base = %{price: price_id, quantity: quantity}
 
         if existing do
-          Map.merge(base, %{id: existing.stripe_id})
+          Map.put(base, :id, existing.stripe_id)
         else
           base
         end
@@ -188,23 +188,17 @@ defmodule Bling.Subscriptions do
     deleted_items =
       subscription_items
       |> Enum.filter(fn item ->
-        existing = Enum.find(new_items, fn new_item -> new_item.price == item.stripe_price_id end)
-        existing == nil
+        Enum.find(new_items, &(&1.price == item.stripe_price_id)) == nil
       end)
       |> Enum.map(fn item -> %{id: item.stripe_id, deleted: true} end)
 
     items = Enum.concat(new_items, deleted_items)
-
-    stripe_params = stripe_params(opts)
-    params = Map.merge(stripe_params, %{items: items})
+    params = Map.merge(stripe_params(opts), %{items: items})
 
     {:ok, stripe_subscription} = Stripe.Subscription.update(subscription.stripe_id, params)
 
     subscription
-    |> change(%{
-      stripe_status: stripe_subscription.status,
-      ends_at: nil
-    })
+    |> change(%{stripe_status: stripe_subscription.status, ends_at: nil})
     |> repo.update!()
 
     stripe_subscription.items.data
@@ -230,6 +224,7 @@ defmodule Bling.Subscriptions do
 
     reload_with_items(subscription)
   end
+ 
 
   @doc false
   def mark_as_cancelled(subscription) do
@@ -431,6 +426,9 @@ defmodule Bling.Subscriptions do
       has_multiple_prices?(subscription) && price_id == nil ->
         raise "You must specify a price_id when incrementing a subscription with multiple prices"
 
+      is_nil(item.quantity) ->
+        raise ArgumentError, "Cannot increment a metered subscription item. Use Bling.Meters.record_event/4 instead."
+
       true ->
         new_opts =
           Keyword.merge(opts, quantity: item.quantity + quantity, price_id: item.stripe_price_id)
@@ -438,6 +436,7 @@ defmodule Bling.Subscriptions do
         set_quantity(subscription, new_opts)
     end
   end
+
 
   @doc """
    Decrements the quantity of a subscription item. Defaults to decrementing the first item. Defaults to decrementing by one. Raises if trying to go below 0.
@@ -453,7 +452,7 @@ defmodule Bling.Subscriptions do
         # can pass any valid Stripe.SubscriptionItem.update/2 params
         subscription = decrement(subscription, stripe: %{ prorate: false })
   """
-  def decrement(subscription, opts \\ []) do
+   def decrement(subscription, opts \\ []) do
     quantity = Keyword.get(opts, :quantity, 1)
     price_id = Keyword.get(opts, :price_id, nil)
 
@@ -463,23 +462,27 @@ defmodule Bling.Subscriptions do
         if !price_id, do: true, else: x.stripe_price_id == price_id
       end)
 
-    new_quantity = item.quantity - quantity
-
     cond do
       quantity < 1 ->
         raise "You cannot decrement a subscription quantity by less than 1"
 
       has_multiple_prices?(subscription) && price_id == nil ->
-        raise "You must specify a price_id when incrementing a subscription with multiple prices"
+        raise "You must specify a price_id when decrementing a subscription with multiple prices"
 
-      new_quantity <= 0 ->
+      is_nil(item.quantity) ->
+        raise ArgumentError, "Cannot decrement a metered subscription item. Use Bling.Meters.record_event/4 instead."
+
+      item.quantity - quantity <= 0 ->
         raise "You cannot decrement a subscription quantity to less than 0"
 
       true ->
-        new_opts = Keyword.merge(opts, quantity: new_quantity, price_id: item.stripe_price_id)
+        new_opts =
+          Keyword.merge(opts, quantity: item.quantity - quantity, price_id: item.stripe_price_id)
+
         set_quantity(subscription, new_opts)
     end
   end
+
 
   @doc """
   Sets the quantity of a subscription item. Defaults to setting the first item. Defaults to setting to one.
@@ -495,7 +498,7 @@ defmodule Bling.Subscriptions do
       # can pass any valid Stripe.SubscriptionItem.update/2 params
       subscription = set_quantity(subscription, stripe: %{ prorate: false })
   """
-  def set_quantity(subscription, opts \\ []) do
+   def set_quantity(subscription, opts \\ []) do
     quantity = Keyword.get(opts, :quantity, 1)
     price_id = Keyword.get(opts, :price_id, nil)
     stripe_params = stripe_params(opts)
@@ -515,6 +518,10 @@ defmodule Bling.Subscriptions do
         raise ArgumentError,
               "You must specify a price_id when changing quantity of a subscription with multiple prices"
 
+      is_nil(item.quantity) ->
+        raise ArgumentError,
+              "Cannot set quantity on a metered subscription item. Use Bling.Meters.record_event/4 instead."
+
       true ->
         params = Map.merge(stripe_params, %{quantity: quantity})
         Stripe.SubscriptionItem.update(item.stripe_id, params)
@@ -531,6 +538,7 @@ defmodule Bling.Subscriptions do
         reload_with_items(subscription)
     end
   end
+
 
   @doc """
   Turns a stripe subscription object into a database subscription without committing it. Meant for internal use.
