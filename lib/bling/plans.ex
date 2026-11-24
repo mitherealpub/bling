@@ -52,4 +52,21 @@ defmodule Bling.Plans do
       conflict_target: :stripe_price_id
     )
   end
+
+def list_pricing_tiers do
+  active_plans = list_active()
+
+  {licensed, metered} =
+    Enum.split_with(active_plans, fn plan -> plan.usage_type == "licensed" end)
+
+  overages_by_product = Enum.group_by(metered, & &1.stripe_product_id)
+
+  Enum.map(licensed, fn base_plan ->
+    %{
+      plan: base_plan,
+      overages: Map.get(overages_by_product, base_plan.stripe_product_id, [])
+    }
+  end)
+end
+
 end
