@@ -64,11 +64,49 @@ def deps do
 end
 ```
 
+Configure your generated modules in `config/config.exs`, ensuring you include the `plan:` key alongside your customer and subscription schemas:
+
+```elixir
+config :bling,
+  bling: MyApp.Bling,
+  repo: MyApp.Repo,
+  customers: [user: MyApp.Accounts.User],
+  subscription: MyApp.Subscriptions.Subscription,
+  subscription_item: MyApp.Subscriptions.SubscriptionItem,
+  plan: MyApp.Subscriptions.Plan
+```
+
+Register your endpoint (`/webhooks/stripe`) in the Stripe Dashboard with at least the following events for catalog and subscription synchronization:
+- `customer.deleted`, `customer.updated`
+- `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
+- `invoice.payment_action_required`, `invoice.payment.failed`
+- `price.created`, `price.updated`, `price.deleted`, `product.updated`
+
+
 Configure stripe:
 
 ```elixir
 config :stripity_stripe, api_key: "...", public_key: "...", webhook_secret: "..."
 ```
+
+Configure your generated modules in `config/config.exs`, ensuring you include the `plan:` key alongside your customer and subscription schemas:
+
+```elixir
+config :bling,
+  bling: MyApp.Bling,
+  repo: MyApp.Repo,
+  customers: [user: MyApp.Accounts.User],
+  subscription: MyApp.Subscriptions.Subscription,
+  subscription_item: MyApp.Subscriptions.SubscriptionItem,
+  plan: MyApp.Subscriptions.Plan
+```
+
+Register your endpoint (`/webhooks/stripe`) in the Stripe Dashboard with at least the following events for catalog and subscription synchronization:
+- `customer.deleted`, `customer.updated`
+- `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`
+- `invoice.payment_action_required`, `invoice.payment.failed`
+- `price.created`, `price.updated`, `price.deleted`, `product.updated`
+
 
 Run the install task. This will generate:
 
@@ -577,6 +615,42 @@ Bling.Subscriptions.change_prices(
   stripe: %{ prorate: true }
 )
 ```
+
+## Plans
+
+Bling can synchronize active Stripe Products and Prices into a local `plans` table automatically via webhooks or manually:
+
+- **CLI Sync:** Run `mix bling.sync_plans` to perform an initial import from Stripe.
+- **Programmatic Sync:** Call `Bling.Plans.sync_all()` to trigger a sync in code.
+- **Fetching Plans:** Retrieve active synced plans ordered by price using `Bling.Plans.list_active()`.
+
+Synced plans store attributes including `usage_type` (`"licensed"` or `"metered"`), `unit_amount`, `interval`, and Stripe metadata (such as `meter_event_name`).
+
+### Metered usage & overages
+
+To use Stripe Billing Meters alongside standard licensed prices, pass metered price IDs as plain strings or `{price_id, nil}` when managing subscriptions:
+
+```elixir
+Bling.Customers.create_subscription(
+  customer,
+  return_url: finalize_url,
+  prices: [
+    {"price_base_monthly", 1},
+    "price_api_overage_metered"
+  ]
+)
+```
+
+Report usage events using `Bling.Meters`:
+
+```elixir
+Bling.Meters.record_event(customer, "api_overage", 15, identifier: "unique_event_id_123")
+```
+
+- Ensure the event name matches your configured Stripe Billing Meter.
+- Pass an optional `identifier` as an idempotency key to prevent duplicate charges.
+- *Note:* Standard quantity-adjustment functions (`increment/2`, `decrement/2`, `set_quantity/2`) raise an `ArgumentError` on metered items; always use `Bling.Meters.record_event/4`.
+
 
 ### Cancelling & resuming
 
