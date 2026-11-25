@@ -74,7 +74,12 @@ defmodule Bling.StripeWebhookHandler do
         |> repo.update!()
         
         Subscriptions.subscription_item_structs_from_stripe_items(event.items.data, subscription)
-        |> Enum.each(fn item -> repo.insert!(item, on_conflict: :replace_all, conflict_target: [:stripe_id]) end)
+        |> Enum.each(fn item ->
+          repo.insert!(item,
+            on_conflict: {:replace_all_except, [:id, :inserted_at]},
+            conflict_target: [:stripe_id]
+          )
+        end)
 
         import Ecto.Query, only: [from: 2]
         item_ids = Enum.map(event.items.data, & &1.id)
